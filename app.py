@@ -2,15 +2,11 @@ import telebot
 import os
 from flask import Flask, request
 
-# Получаем токен из переменных окружения
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
-# URL, который Vercel предоставит для нашего приложения
-APP_URL = f"https://{os.environ.get('VERCEL_URL')}"
-
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
-# Endpoint для вебхука
+# Эндпоинт для приема обновлений от Telegram
 @app.route('/', methods=['POST'])
 def webhook():
     if request.headers.get('content-type') == 'application/json':
@@ -18,18 +14,26 @@ def webhook():
         update = telebot.types.Update.de_json(json_string)
         bot.process_new_updates([update])
         return 'OK', 200
+    return "Unsupported Media Type", 415
 
 # Обработчик команды /start
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.send_message(message.chat.id, "Hello! This is a simple bot running on Vercel.")
+    bot.send_message(message.chat.id, "Hello! This bot is now set up with a webhook.")
 
-# Устанавливаем вебхук при запуске, если мы не в локальной среде
-if os.environ.get("VERCEL"):
+# "Секретный" эндпоинт для установки вебхука
+@app.route('/set_webhook')
+def set_webhook():
+    # URL, который Vercel предоставит для нашего приложения
+    # Мы берем его из заголовков запроса, чтобы он всегда был правильным
+    host = request.headers.get('X-Vercel-Deployment-Url') or request.host
+    url = f"https://{host}"
+    
     bot.remove_webhook()
-    bot.set_webhook(url=APP_URL)
+    bot.set_webhook(url=url)
+    return f"Webhook set to {url}"
 
-# Добавим простую главную страницу для проверки
+# Главная страница для проверки
 @app.route('/')
 def index():
-    return "Bot is running!"
+    return "Bot is running! Use /set_webhook to initialize."
