@@ -9,6 +9,7 @@ app = Flask(__name__)
 # Эндпоинт для приема обновлений от Telegram
 @app.route('/', methods=['POST'])
 def webhook():
+    print("Received webhook update!") # Added for debugging
     if request.headers.get('content-type') == 'application/json':
         json_string = request.get_data().decode('utf-8')
         update = telebot.types.Update.de_json(json_string)
@@ -34,6 +35,6 @@ def set_webhook():
     return f"Webhook set to {url}"
 
 # Главная страница для проверки
-@app.route('/')
+@app.route('/health') # Changed route
 def index():
     return "Bot is running! Use /set_webhook to initialize."
