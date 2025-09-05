@@ -1,12 +1,14 @@
 from flask import Flask, request, abort
 import telebot
-import os
 
-# Вставьте ваш токен сюда (временно для теста)
+# Инициализация Flask приложения
+app = Flask(__name__)
+
+# Вставьте ваш токен (временно для теста)
 TOKEN = "8242128097:AAG_NqmWEbMqiaN5lFfMUtC1_Gt_2gLuF4w"
 
+# Инициализация бота
 bot = telebot.TeleBot(TOKEN)
-app = Flask(__name__)
 
 # Обработчик команды /start
 @bot.message_handler(commands=['start'])
@@ -28,7 +30,7 @@ def webhook():
 @app.route('/set_webhook', methods=['GET', 'POST'])
 def set_webhook():
     # Получаем URL текущего приложения
-    host = request.host
+    host = request.headers.get('host')
     webhook_url = f"https://{host}/webhook"
     
     # Удаляем старый webhook
@@ -43,6 +45,6 @@ def set_webhook():
 def index():
     return "Hello, this is a simple Telegram bot running on Vercel!"
 
-# Запуск приложения
-if __name__ == '__main__':
-    app.run()
+# Обязательный обработчик для Vercel
+def handler(event, context):
+    return app(event, context)
