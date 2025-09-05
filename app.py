@@ -29,6 +29,7 @@ def set_webhook():
     # Мы берем его из заголовков запроса, чтобы он всегда был правильным
     host = request.headers.get('X-Vercel-Deployment-Url') or request.host
     url = f"https://{host}"
+    print(f"Attempting to set webhook to: {url}") # Added for debugging
     
     bot.remove_webhook()
     bot.set_webhook(url=url)
