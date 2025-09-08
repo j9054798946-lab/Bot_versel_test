@@ -3,13 +3,16 @@ import os
 from flask import Flask, request
 import json
 
-# Получаем токены из переменных окружения
+# Получаем переменные окружения
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
 WEBHOOK_SECRET = os.environ.get('WEBHOOK_SECRET')
+# URL вашего основного домена, который вы добавите в Vercel
+PUBLIC_URL = os.environ.get('PUBLIC_URL')
 
-# Проверяем, что переменные окружения установлены
-if not TOKEN or not WEBHOOK_SECRET:
-    print("FATAL ERROR: TELEGRAM_TOKEN and WEBHOOK_SECRET environment variables must be set.")
+# Проверяем, что все переменные установлены
+if not TOKEN or not WEBHOOK_SECRET or not PUBLIC_URL:
+    # Эта ошибка будет видна в логах Vercel при запуске
+    raise ValueError("FATAL ERROR: TELEGRAM_TOKEN, WEBHOOK_SECRET, and PUBLIC_URL environment variables must be set.")
 
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
@@ -18,26 +21,17 @@ app = Flask(__name__)
 @app.route('/', methods=['GET', 'POST'])
 def webhook_and_index():
     if request.method == 'POST':
-        # Проверяем, что секрет вообще задан в окружении
-        if not WEBHOOK_SECRET:
-            print("Webhook request rejected: WEBHOOK_SECRET is not configured.")
-            return "Unauthorized", 401
-
-        # Проверяем секретный заголовок
         secret_header = request.headers.get('X-Telegram-Bot-Api-Secret-Token')
         if secret_header != WEBHOOK_SECRET:
-            print(f"Invalid secret token received. Got: '{secret_header}', Expected: '{WEBHOOK_SECRET[:4]}...'")
+            print(f"Invalid secret token received. Got: '{secret_header}'")
             return "Unauthorized", 401
         
         try:
             raw_data = request.stream.read().decode('utf-8')
             print("--- POST request received with valid secret ---")
-            print("Data:", raw_data)
-
             update = telebot.types.Update.de_json(raw_data)
             bot.process_new_updates([update])
             print("Update processed successfully.")
-            
         except Exception as e:
             print(f"Error processing update: {e}")
             
@@ -48,22 +42,17 @@ def webhook_and_index():
 # Обработчик команды /start
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.send_message(message.chat.id, "Success! The bot is working with a secure header webhook!")
+    bot.send_message(message.chat.id, "IT'S ALIVE! The bot is finally working correctly!")
 
 # "Секретный" эндпоинт для установки вебхука
 @app.route('/set_webhook')
 def set_webhook():
-    host = request.headers.get('X-Vercel-Deployment-Url') or request.host
-    url = f"https://{host}/"
+    # Теперь мы используем наш постоянный публичный URL
+    url = f"https://{PUBLIC_URL}/"
     
-    print(f"Attempting to set webhook to: {url}")
-    print(f"Using secret token: {'SET' if WEBHOOK_SECRET else 'NOT SET'}")
-
-    if not WEBHOOK_SECRET:
-        return "Error: WEBHOOK_SECRET is not set on the server.", 500
-
     bot.remove_webhook()
     bot.set_webhook(url=url, secret_token=WEBHOOK_SECRET)
+    print(f"Webhook set to the permanent URL: {url}")
     return f"Webhook set to {url} with a secret token."
 
 # Эндпоинт для проверки информации о вебхуке
