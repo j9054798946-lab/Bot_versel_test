@@ -5,8 +5,11 @@ import json
 
 # Получаем токены из переменных окружения
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
-# Этот секрет вы должны установить в настройках Vercel
 WEBHOOK_SECRET = os.environ.get('WEBHOOK_SECRET')
+
+# Проверяем, что переменные окружения установлены
+if not TOKEN or not WEBHOOK_SECRET:
+    print("FATAL ERROR: TELEGRAM_TOKEN and WEBHOOK_SECRET environment variables must be set.")
 
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
@@ -15,11 +18,16 @@ app = Flask(__name__)
 @app.route('/', methods=['GET', 'POST'])
 def webhook_and_index():
     if request.method == 'POST':
+        # Проверяем, что секрет вообще задан в окружении
+        if not WEBHOOK_SECRET:
+            print("Webhook request rejected: WEBHOOK_SECRET is not configured.")
+            return "Unauthorized", 401
+
         # Проверяем секретный заголовок
         secret_header = request.headers.get('X-Telegram-Bot-Api-Secret-Token')
         if secret_header != WEBHOOK_SECRET:
-            print(f"Invalid secret token received: {secret_header}")
-            return "Forbidden", 403
+            print(f"Invalid secret token received. Got: '{secret_header}', Expected: '{WEBHOOK_SECRET[:4]}...'")
+            return "Unauthorized", 401
         
         try:
             raw_data = request.stream.read().decode('utf-8')
@@ -46,11 +54,15 @@ def send_welcome(message):
 @app.route('/set_webhook')
 def set_webhook():
     host = request.headers.get('X-Vercel-Deployment-Url') or request.host
-    # URL теперь снова указывает на корень
     url = f"https://{host}/"
     
+    print(f"Attempting to set webhook to: {url}")
+    print(f"Using secret token: {'SET' if WEBHOOK_SECRET else 'NOT SET'}")
+
+    if not WEBHOOK_SECRET:
+        return "Error: WEBHOOK_SECRET is not set on the server.", 500
+
     bot.remove_webhook()
-    # Устанавливаем вебхук, передавая наш секрет в параметре secret_token
     bot.set_webhook(url=url, secret_token=WEBHOOK_SECRET)
     return f"Webhook set to {url} with a secret token."
 
