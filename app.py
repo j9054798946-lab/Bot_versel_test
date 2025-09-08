@@ -26,14 +26,12 @@ def webhook_and_index():
             print(f"Invalid secret token received. Got: '{secret_header}'")
             return "Unauthorized", 401
         
-        try:
-            raw_data = request.stream.read().decode('utf-8')
-            print("--- POST request received with valid secret ---")
-            update = telebot.types.Update.de_json(raw_data)
-            bot.process_new_updates([update])
-            print("Update processed successfully.")
-        except Exception as e:
-            print(f"Error processing update: {e}")
+        # Убрали try...except, чтобы увидеть полную ошибку, если она есть
+        raw_data = request.stream.read().decode('utf-8')
+        print("--- POST request received, processing update directly ---")
+        update = telebot.types.Update.de_json(raw_data)
+        bot.process_new_updates([update])
+        print("Update processed. If no error appeared above, the message should have been sent.")
             
         return 'OK', 200
     else:
