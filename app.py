@@ -32,7 +32,14 @@ def webhook_and_index():
 # Обработчик команды /start
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.send_message(message.chat.id, "IT'S ALIVE! The bot is finally working correctly!")
+    # ФИНАЛЬНЫЙ ДИАГНОСТИЧЕСКИЙ ЛОГ:
+    print(f"--- '/start' handler triggered for chat_id: {message.chat.id} ---")
+    try:
+        bot.send_message(message.chat.id, "IT'S ALIVE! The bot is finally working correctly!")
+        print(f"--- Message sending API call executed for chat_id: {message.chat.id} ---")
+    except Exception as e:
+        print(f"--- ERROR inside '/start' handler: {e} ---")
+
 
 # "Секретный" эндпоинт для установки вебхука
 @app.route('/set_webhook')
