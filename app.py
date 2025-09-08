@@ -6,12 +6,9 @@ import json
 # Получаем переменные окружения
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
 WEBHOOK_SECRET = os.environ.get('WEBHOOK_SECRET')
-# URL вашего основного домена, который вы добавите в Vercel
 PUBLIC_URL = os.environ.get('PUBLIC_URL')
 
-# Проверяем, что все переменные установлены
 if not TOKEN or not WEBHOOK_SECRET or not PUBLIC_URL:
-    # Эта ошибка будет видна в логах Vercel при запуске
     raise ValueError("FATAL ERROR: TELEGRAM_TOKEN, WEBHOOK_SECRET, and PUBLIC_URL environment variables must be set.")
 
 bot = telebot.TeleBot(TOKEN)
@@ -23,16 +20,11 @@ def webhook_and_index():
     if request.method == 'POST':
         secret_header = request.headers.get('X-Telegram-Bot-Api-Secret-Token')
         if secret_header != WEBHOOK_SECRET:
-            print(f"Invalid secret token received. Got: '{secret_header}'")
             return "Unauthorized", 401
         
-        # Убрали try...except, чтобы увидеть полную ошибку, если она есть
         raw_data = request.stream.read().decode('utf-8')
-        print("--- POST request received, processing update directly ---")
         update = telebot.types.Update.de_json(raw_data)
         bot.process_new_updates([update])
-        print("Update processed. If no error appeared above, the message should have been sent.")
-            
         return 'OK', 200
     else:
         return "Bot is running! Use /set_webhook to initialize."
@@ -45,12 +37,9 @@ def send_welcome(message):
 # "Секретный" эндпоинт для установки вебхука
 @app.route('/set_webhook')
 def set_webhook():
-    # Теперь мы используем наш постоянный публичный URL
     url = f"https://{PUBLIC_URL}/"
-    
     bot.remove_webhook()
     bot.set_webhook(url=url, secret_token=WEBHOOK_SECRET)
-    print(f"Webhook set to the permanent URL: {url}")
     return f"Webhook set to {url} with a secret token."
 
 # Эндпоинт для проверки информации о вебхуке
@@ -58,15 +47,26 @@ def set_webhook():
 def get_webhook_info():
     try:
         info = bot.get_webhook_info()
-        info_dict = {
-            "url": info.url,
-            "has_custom_certificate": info.has_custom_certificate,
-            "pending_update_count": info.pending_update_count,
-            "last_error_date": info.last_error_date,
-            "last_error_message": info.last_error_message,
-            "max_connections": info.max_connections,
-            "ip_address": info.ip_address
-        }
+        info_dict = { "url": info.url, "pending_update_count": info.pending_update_count, "last_error_message": info.last_error_message }
         return json.dumps(info_dict, indent=4)
     except Exception as e:
         return f"Error getting webhook info: {e}"
+
+# Новый эндпоинт для прямого теста отправки сообщения
+@app.route('/test_send')
+def test_send():
+    chat_id = request.args.get('chat_id')
+    if not chat_id:
+        return "Please provide a 'chat_id' parameter in the URL (e.g., /test_send?chat_id=12345).", 400
+
+    try:
+        print(f"Attempting to send a direct test message to chat_id: {chat_id}")
+        # Мы намеренно используем try/except здесь, чтобы поймать и показать любую ошибку
+        bot.send_message(chat_id, "This is a direct test message from the server.")
+        print("Test message API call executed without raising an exception.")
+        return f"A test message was sent to chat_id {chat_id}. Check your Telegram and Vercel logs.", 200
+    except Exception as e:
+        error_message = f"An error occurred while trying to send a test message: {e}"
+        print(error_message)
+        # Возвращаем ошибку в браузер и в логи, чтобы точно ее увидеть
+        return error_message, 500
