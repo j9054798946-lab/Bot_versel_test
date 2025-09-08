@@ -14,6 +14,13 @@ if not TOKEN or not WEBHOOK_SECRET or not PUBLIC_URL:
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
+import telebot
+import os
+from flask import Flask, request
+import json
+
+# ... (весь код до обработчика вебхука остается тем же) ...
+
 # Эндпоинт для вебхука и главная страница
 @app.route('/', methods=['GET', 'POST'])
 def webhook_and_index():
@@ -22,23 +29,42 @@ def webhook_and_index():
         if secret_header != WEBHOOK_SECRET:
             return "Unauthorized", 401
         
-        raw_data = request.stream.read().decode('utf-8')
-        update = telebot.types.Update.de_json(raw_data)
-        bot.process_new_updates([update])
+        try:
+            raw_data = request.stream.read().decode('utf-8')
+            update = telebot.types.Update.de_json(raw_data)
+            
+            # --- НАША НОВАЯ РУЧНАЯ ПРОВЕРКА ---
+            # Проверяем, есть ли в обновлении сообщение и текст в нем
+            if update.message and update.message.text:
+                print(f"--- Received message text: '{update.message.text}' ---")
+                # Если текст сообщения - это /start
+                if update.message.text == '/start':
+                    chat_id = update.message.chat.id
+                    print(f"--- Manual '/start' detected for chat_id: {chat_id}. Sending reply. ---")
+                    bot.send_message(chat_id, "MANUAL CHECK SUCCESS! The bot is working!")
+                    print("--- Reply sent successfully via manual check. ---")
+                    # Мы обработали команду, можно выходить
+                    return 'OK', 200
+
+            # Если это не /start, пусть библиотека обрабатывает это как обычно
+            print("--- Message was not '/start', passing to standard processor. ---")
+            bot.process_new_updates([update])
+            
+        except Exception as e:
+            print(f"--- An error occurred in webhook handler: {e} ---")
+            
         return 'OK', 200
     else:
         return "Bot is running! Use /set_webhook to initialize."
 
-# Обработчик команды /start
+# ... (остальной код, включая /test_send и старый обработчик /start, остается на месте) ...
+
+# Обработчик команды /start (оставляем его как запасной)
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    # ФИНАЛЬНЫЙ ДИАГНОСТИЧЕСКИЙ ЛОГ:
-    print(f"--- '/start' handler triggered for chat_id: {message.chat.id} ---")
-    try:
-        bot.send_message(message.chat.id, "IT'S ALIVE! The bot is finally working correctly!")
-        print(f"--- Message sending API call executed for chat_id: {message.chat.id} ---")
-    except Exception as e:
-        print(f"--- ERROR inside '/start' handler: {e} ---")
+    print("--- Fallback '/start' handler triggered. This should not happen if manual check works. ---")
+    bot.send_message(message.chat.id, "IT'S ALIVE! The bot is finally working correctly!")
+
 
 
 # "Секретный" эндпоинт для установки вебхука
