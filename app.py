@@ -2,54 +2,57 @@ import telebot
 import os
 from flask import Flask, request
 import json
-import secrets
 
-# Генерируе�� секретный токен при старте приложения
-SECRET_TOKEN = secrets.token_urlsafe(16)
-
+# Получаем токены из переменных окружения
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
+# Этот секрет вы должны установить в настройках Vercel
+WEBHOOK_SECRET = os.environ.get('WEBHOOK_SECRET')
+
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
-# Эндпоинт для вебхука. Теперь он включает секретный токен.
-@app.route(f'/{SECRET_TOKEN}', methods=['POST'])
-def webhook():
-    try:
-        # Получаем сырые данные из запроса
-        raw_data = request.stream.read().decode('utf-8')
-        print("--- POST request received ---")
-        print("Data:", raw_data)
-
-        # Обрабатываем обновление
-        update = telebot.types.Update.de_json(raw_data)
-        bot.process_new_updates([update])
-        print("Update processed successfully.")
+# Эндпоинт для вебхука и главная страница
+@app.route('/', methods=['GET', 'POST'])
+def webhook_and_index():
+    if request.method == 'POST':
+        # Проверяем секретный заголовок
+        secret_header = request.headers.get('X-Telegram-Bot-Api-Secret-Token')
+        if secret_header != WEBHOOK_SECRET:
+            print(f"Invalid secret token received: {secret_header}")
+            return "Forbidden", 403
         
-    except Exception as e:
-        print(f"Error processing update: {e}")
-        
-    return 'OK', 200
+        try:
+            raw_data = request.stream.read().decode('utf-8')
+            print("--- POST request received with valid secret ---")
+            print("Data:", raw_data)
 
-# Главная страница для проверки
-@app.route('/')
-def index():
-    return "Bot is running! Use /set_webhook to initialize."
+            update = telebot.types.Update.de_json(raw_data)
+            bot.process_new_updates([update])
+            print("Update processed successfully.")
+            
+        except Exception as e:
+            print(f"Error processing update: {e}")
+            
+        return 'OK', 200
+    else:
+        return "Bot is running! Use /set_webhook to initialize."
 
 # Обработчик команды /start
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.send_message(message.chat.id, "Hello from Vercel! Secure webhook is working!")
+    bot.send_message(message.chat.id, "Success! The bot is working with a secure header webhook!")
 
 # "Секретный" эндпоинт для установки вебхука
 @app.route('/set_webhook')
 def set_webhook():
     host = request.headers.get('X-Vercel-Deployment-Url') or request.host
-    # Теперь URL для вебхука содержит наш секретный токен
-    url = f"https://{host}/{SECRET_TOKEN}"
+    # URL теперь снова указывает на корень
+    url = f"https://{host}/"
     
     bot.remove_webhook()
-    bot.set_webhook(url=url)
-    return f"Webhook set to {url}"
+    # Устанавливаем вебхук, передавая наш секрет в параметре secret_token
+    bot.set_webhook(url=url, secret_token=WEBHOOK_SECRET)
+    return f"Webhook set to {url} with a secret token."
 
 # Эндпоинт для проверки информации о вебхуке
 @app.route('/get_webhook_info')
